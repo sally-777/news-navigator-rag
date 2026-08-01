@@ -1,3 +1,4 @@
+import re
 from importlib import import_module
 from news_api import fetch_external_news
 
@@ -9,9 +10,14 @@ chroma_store = import_module("05_create_chroma_store")
 def build_context(question, k=5, max_sources=3):
     collection = chroma_store.get_or_create_store()
 
-    # 1. الاستعلام الأول من ChromaDB
+    # 0. تنظيف السؤال من أي توجيهات بين أقواس لاستخدامه في البحث المباشر
+    clean_search_query = re.sub(r"\(.*?\)", "", question).strip()
+    if not clean_search_query:
+        clean_search_query = question
+
+    # 1. الاستعلام الأول من ChromaDB باستخدام السؤال النظيف
     results = collection.query(
-        query_texts=[question],
+        query_texts=[clean_search_query],
         n_results=k,
         include=["documents", "metadatas", "distances"],
     )
@@ -22,17 +28,22 @@ def build_context(question, k=5, max_sources=3):
 
     fetched_new_data = False
 
-    # 2. لو مفيش نتائج أو النتائج بعيدة (Distance > 0.8) نطلب من News API
-    if not distances or min(distances) > 0.8:
-        raw_new_docs = fetch_external_news(question)
+    # 2. فحص هل النتائج غير كافية أو غير متطابقة لجلب أخبار خارجية
+    # إذا كانت القائمة فارغة أو أفضل نتيجة ضعيفة (Distance > 0.4)
+    should_fetch_api = not distances or (len(distances) > 0 and min(distances) > 0.4)
+
+    if should_fetch_api:
+        # البحث في الـ API بالسؤال النظيف تماماً
+        raw_new_docs = fetch_external_news(clean_search_query)
+        
         if raw_new_docs:
             chunked_docs = chunking.chunk_documents(raw_new_docs)
             chroma_store.add_documents_to_store(chunked_docs)
             fetched_new_data = True
 
-            # re-query بعد التحديث التراكمي في chroma_db
+            # إعادة الاستعلام بعد إضافة الأخبار الجديدة
             results = collection.query(
-                query_texts=[question],
+                query_texts=[clean_search_query],
                 n_results=k,
                 include=["documents", "metadatas", "distances"],
             )
@@ -40,7 +51,7 @@ def build_context(question, k=5, max_sources=3):
             metas = results.get("metadatas", [[]])[0]
             distances = results.get("distances", [[]])[0]
 
-    # 3. تجهيز الـ rows وتحسين استخراج الميتا داتا والروابط
+    # 3. تجهيز البيانات وتحسين استخراج الميتا داتا والروابط
     rows = []
     for doc, meta, dist in zip(docs, metas, distances):
         # تحويل الـ distance إلى similarity score
@@ -57,7 +68,7 @@ def build_context(question, k=5, max_sources=3):
                 "title": meta.get("title", "Untitled Document"),
                 "is_current": is_current,
                 "chunk_text": doc,
-                "text": doc,  # متاح لتسهيل القراءة في Streamlit
+                "text": doc,
                 "url": article_url,
                 "score": score,
             }
@@ -72,8 +83,6 @@ def build_context(question, k=5, max_sources=3):
     seen_documents = set()
 
     for row in rows:
-        if row["score"] <= 0:
-            continue
         if row["document_id"] in seen_documents:
             continue
         selected.append(row)
