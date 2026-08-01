@@ -172,19 +172,21 @@ with st.form(key="search_form", clear_on_submit=False):
 
 # Execute Search & Retrieval Logic
 if submit_btn and user_query.strip():
-    final_query = user_query
+    # بناء استعلام التوجيه فقط للذكاء الاصطناعي دون إفساد الكلمات المفتاحية للـ API
+    prompt_query = user_query.strip()
+    
     if st.session_state.category_filter != "All":
-        final_query += f" (Focus context on {st.session_state.category_filter})"
+        prompt_query += f" (Focus context on {st.session_state.category_filter})"
 
     if "Arabic" in lang_choice:
-        final_query += " (Please respond in Arabic)."
+        prompt_query += " (Please respond in Arabic)."
     elif "English" in lang_choice:
-        final_query += " (Please respond in English)."
+        prompt_query += " (Please respond in English)."
 
     with st.spinner(
         "⚡ SATECK Engine analyzing multi-source articles & generating insights..."
     ):
-        answer, sources, fetched_new_data = answer_question(final_query)
+        answer, sources, fetched_new_data = answer_question(prompt_query)
 
     if fetched_new_data:
         st.toast(
@@ -209,9 +211,9 @@ if submit_btn and user_query.strip():
                 else:
                     st.markdown(f"**[{i}] {title}**")
 
-                # 💡 البحث عن النص واختيار المفتاح الصحيح المرتجع من الـ Retriever
+                # البحث عن النص واختيار المفتاح الصحيح
                 snippet = (
-                    src.get("chunk_text")  # 👈 المضاف حديثاً لدعم المخرجات المباشرة
+                    src.get("chunk_text")
                     or src.get("text")
                     or src.get("search_text")
                     or src.get("snippet")
