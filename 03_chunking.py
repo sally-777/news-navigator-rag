@@ -32,6 +32,7 @@ def chunk_documents(documents):
                         "title": doc["title"],
                         "category": doc.get("category", "general"),
                         "is_current": doc.get("is_current", True),
+                        "url": doc.get("url", ""),  # 👈 تم إضافة الرابط هنا ليصل إلى ChromaDB
                     },
                 }
             )
