@@ -30,7 +30,7 @@ def build_context(question, k=5, max_sources=3):
             chroma_store.add_documents_to_store(chunked_docs)
             fetched_new_data = True
 
-            # re-query بعد التحديث التراكمي
+            # re-query بعد التحديث التراكمي في chroma_db
             results = collection.query(
                 query_texts=[question],
                 n_results=k,
@@ -40,13 +40,16 @@ def build_context(question, k=5, max_sources=3):
             metas = results.get("metadatas", [[]])[0]
             distances = results.get("distances", [[]])[0]
 
-    # 3. تجهيز الـ rows بنفس طريقة الدكتور
+    # 3. تجهيز الـ rows وتحسين استخراج الميتا داتا والروابط
     rows = []
     for doc, meta, dist in zip(docs, metas, distances):
-        # نحول الـ distance إلى score (كل ما قل الـ distance كل ما زاد الـ similarity score)
+        # تحويل الـ distance إلى similarity score
         score = 1.0 - dist
         is_current = str(meta.get("is_current", "True")).lower() == "true"
         doc_id = meta.get("title", doc[:30])
+
+        # جلب رابط المقال الأصلي بدقة
+        article_url = meta.get("url") or meta.get("link") or ""
 
         rows.append(
             {
@@ -54,11 +57,13 @@ def build_context(question, k=5, max_sources=3):
                 "title": meta.get("title", "Untitled Document"),
                 "is_current": is_current,
                 "chunk_text": doc,
+                "text": doc,  # متاح لتسهيل القراءة في Streamlit
+                "url": article_url,
                 "score": score,
             }
         )
 
-    # 4. الترتيب بأسلوب الدكتور (الأحدث والأعلى تقييماً)
+    # 4. الترتيب (الأحدث والأعلى تقييماً)
     rows = sorted(
         rows, key=lambda row: (row["is_current"], row["score"]), reverse=True
     )
@@ -76,7 +81,7 @@ def build_context(question, k=5, max_sources=3):
         if len(selected) == max_sources:
             break
 
-    # 5. صياغة الـ Context النهائي بنفس شكل الدكتور تماماً
+    # 5. صياغة الـ Context الموجه للذكاء الاصطناعي
     context = ""
     for source_number, row in enumerate(selected, start=1):
         status = "CURRENT" if row["is_current"] else "OUTDATED"
