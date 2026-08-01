@@ -8,8 +8,9 @@ try:
 except Exception:
     NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
+
 def fetch_external_news(query, max_results=5):
-    """جلب الأخبار الخارجية عبر Currents API"""
+    """جلب الأخبار الخارجية عبر Currents API وتضمين رابط الـ URL الأصلي"""
     if not NEWS_API_KEY:
         print("⚠️ NEWS_API_KEY is missing in secrets/env!")
         return []
@@ -30,7 +31,7 @@ def fetch_external_news(query, max_results=5):
                     "title": item.get("title", "External News Title"),
                     "is_current": True,
                     "category": item.get("category", ["general"])[0] if item.get("category") else "general",
-                    "url": item.get("url", ""),
+                    "url": item.get("url", ""),  # 👈 حفظ رابط الخبر الأصلي القابل للنقر
                     "text": f"{item.get('title', '')}. {item.get('description', '')}"
                 })
         return fetched_docs
