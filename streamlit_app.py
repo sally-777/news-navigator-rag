@@ -199,8 +199,9 @@ if submit_btn and user_query.strip():
     if sources:
         with st.expander("📚 Verified Sources & Citations"):
             for i, src in enumerate(sources, 1):
-                title = src.get("title", "News Source")
-                url = src.get("url") or src.get("link")
+                # جلب العنوان سواء كان في الكائن مباشرة أو داخل metadata
+                title = src.get("title") or src.get("metadata", {}).get("title", "News Source")
+                url = src.get("url") or src.get("link") or src.get("metadata", {}).get("url")
 
                 # Display clickable title if URL exists
                 if url and str(url).startswith("http"):
@@ -208,16 +209,21 @@ if submit_btn and user_query.strip():
                 else:
                     st.markdown(f"**[{i}] {title}**")
 
-                # Display snippet if text content is available
+                # 💡 البحث عن النص واختيار المفتاح الصحيح المرتجع من الـ Retriever
                 snippet = (
-                    src.get("text")
+                    src.get("chunk_text")  # 👈 المضاف حديثاً لدعم المخرجات المباشرة
+                    or src.get("text")
+                    or src.get("search_text")
+                    or src.get("snippet")
                     or src.get("content")
                     or src.get("description")
                     or ""
                 )
 
-                if snippet.strip():
-                    st.caption(f"📍 Snippet: {snippet[:200]}...")
+                if snippet and str(snippet).strip():
+                    st.caption(f"📍 **Snippet:** {str(snippet).strip()}")
+                else:
+                    st.caption("📍 *Preview text available in database context.*")
 
                 st.divider()
 
